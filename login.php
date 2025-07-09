@@ -16,10 +16,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['username'] = $user['username'];
         $_SESSION['role'] = $user['role'];
-        header("Location: index.php");
+        header("Location: home.php");
         exit();
     } else {
         $error = "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง";
+        $_SESSION['play_sound'] = 'error'; // ตั้งค่าให้เล่นเสียงเมื่อเกิดข้อผิดพลาด
     }
 }
 ?>
@@ -35,6 +36,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         tailwind.config = {
             theme: {
                 extend: {
+                    colors: {
+                        'oxford-blue': '#002147',
+                        'oxford-gold': '#FFD700',
+                        'book-brown': '#8B4513',
+                        'parchment': '#F4E4BC'
+                    },
                     fontFamily: {
                         'thai': ['Sarabun', 'sans-serif']
                     },
@@ -84,9 +91,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .word-scramble {
             animation: wiggle 0.5s ease-in-out;
         }
+        .sound-control {
+            position: fixed;
+            top: 50%;
+            right: 10px;
+            transform: translateY(-50%);
+            background: rgba(0, 33, 71, 0.8);
+            color: var(--oxford-gold);
+            border: 2px solid var(--oxford-gold);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+        .sound-control:hover {
+            background: rgba(255, 215, 0, 0.2);
+            transform: translateY(-50%) scale(1.1);
+        }
+        .sound-control.muted {
+            background: rgba(139, 69, 19, 0.8);
+            color: #888;
+            border-color: #888;
+        }
+        .volume-slider {
+            position: fixed;
+            top: 60%;
+            right: 10px;
+            width: 80px;
+            transform: rotate(-90deg);
+            z-index: 1000;
+        }
+        .volume-slider input[type="range"] {
+            width: 100%;
+            height: 5px;
+            background: #ddd;
+            outline: none;
+            border-radius: 5px;
+        }
+        .volume-slider input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 15px;
+            height: 15px;
+            background: var(--oxford-gold);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .touch-button {
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        .touch-button:active {
+            transform: scale(0.95);
+        }
     </style>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 font-thai relative overflow-hidden">
+    <!-- Sound Control Button -->
+    <div class="sound-control" id="soundToggle" title="เปิด/ปิดเสียง">🔊</div>
+
+    <!-- Volume Slider -->
+    <div class="volume-slider" id="volumeSlider">
+        <input type="range" min="0" max="100" value="50" id="volumeControl">
+    </div>
+
     <!-- Floating Background Letters -->
     <div class="floating-letters" style="top: 15%; left: 8%; animation-delay: 0s; font-size: 3rem;">W</div>
     <div class="floating-letters" style="top: 25%; right: 12%; animation-delay: 1s; font-size: 2.5rem;">O</div>
@@ -110,8 +182,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="letter-tile-active w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg animate-bounce" style="animation-delay: 0.1s;">X</div>
                         <div class="letter-tile-active w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg animate-bounce" style="animation-delay: 0.2s;">F</div>
                         <div class="letter-tile-active w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg animate-bounce" style="animation-delay: 0.3s;">O</div>
-                        <div class="letter-tile-active w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg animate-bounce" style="animation-delay: 0.3s;">R</div>
-                        <div class="letter-tile-active w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg animate-bounce" style="animation-delay: 0.3s;">D</div>
+                        <div class="letter-tile-active w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg animate-bounce" style="animation-delay: 0.4s;">R</div>
+                        <div class="letter-tile-active w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg animate-bounce" style="animation-delay: 0.5s;">D</div>
                     </div>
                 </div>
                 <h1 class="text-4xl font-bold text-white mb-2 drop-shadow-lg">ยินดีต้อนรับกลับ!</h1>
@@ -130,7 +202,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="letter-tile w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-purple-600">I</div>
                         <div class="letter-tile w-6 h-6 rounded flex items-center justify-center text-pink-600">N</div>
                         <div class="w-6 h-6"></div>
-
                     </div>
                 </div>
 
@@ -175,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <div class="space-y-4">
                         <button type="submit" 
-                                class="w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white font-bold py-3 px-6 rounded-xl hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl relative overflow-hidden group">
+                                class="w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white font-bold py-3 px-6 rounded-xl hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl relative overflow-hidden group touch-button">
                             <span class="relative z-10 flex items-center justify-center">
                                 🎮 เข้าสู่ระบบ
                             </span>
@@ -185,41 +256,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="text-center">
                             <span class="text-gray-600">ยังไม่มีบัญชี? </span>
                             <a href="register.php" 
-                               class="text-purple-600 hover:text-purple-800 font-semibold hover:underline transition-all duration-300 inline-flex items-center">
+                               class="text-purple-600 hover:text-purple-800 font-semibold hover:underline transition-all duration-300 inline-flex items-center touch-button">
                                 สมัครสมาชิก
                                 <span class="ml-1 transform group-hover:translate-x-1 transition-transform">→</span>
                             </a>
                         </div>
                     </div>
                 </form>
-            </div>
-
-            <!-- Game Stats Preview -->
-            <div class="mt-6 grid grid-cols-3 gap-3">
-                <div class="bg-white/20 backdrop-blur-sm rounded-xl p-3 text-center border border-white/30">
-                    <div class="text-2xl mb-1">🏆</div>
-                    <div class="text-white text-xs font-semibold">คะแนนสูงสุด</div>
-                </div>
-                <div class="bg-white/20 backdrop-blur-sm rounded-xl p-3 text-center border border-white/30">
-                    <div class="text-2xl mb-1">⚡</div>
-                    <div class="text-white text-xs font-semibold">เล่นด่วน</div>
-                </div>
-                <div class="bg-white/20 backdrop-blur-sm rounded-xl p-3 text-center border border-white/30">
-                    <div class="text-2xl mb-1">🎯</div>
-                    <div class="text-white text-xs font-semibold">ความแม่นยำ</div>
-                </div>
-            </div>
-
-            <!-- Daily Challenge Teaser -->
-            <div class="text-center mt-6">
-                <div class="bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-xl p-4 shadow-lg transform hover:scale-105 transition-all duration-300">
-                    <div class="flex items-center justify-center space-x-2">
-                        <span class="text-2xl animate-bounce">🌟</span>
-                        <span class="font-bold">ท้าทายประจำวัน</span>
-                        <span class="text-2xl animate-bounce" style="animation-delay: 0.5s;">🌟</span>
-                    </div>
-                    <p class="text-sm mt-1 opacity-90">เข้าสู่ระบบเพื่อรับโบนัสพิเศษ!</p>
-                </div>
             </div>
         </div>
     </div>
@@ -228,12 +271,109 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-black/10 to-transparent pointer-events-none"></div>
     
     <script>
-        // Interactive animations
+        class SoundManager {
+            constructor() {
+                this.audioContext = null;
+                this.sounds = {};
+                this.isEnabled = true;
+                this.volume = 0.5;
+                this.init();
+            }
+
+            async init() {
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    this.masterGain = this.audioContext.createGain();
+                    this.masterGain.connect(this.audioContext.destination);
+                    this.masterGain.gain.value = this.volume;
+                    this.createSounds();
+                } catch (error) {
+                    console.warn('Audio not supported:', error);
+                }
+            }
+
+            createSounds() {
+                this.sounds.ambient = this.createTone(220, 'sine', 0.02, 2, true);
+                this.sounds.click = this.createTone(400, 'triangle', 0.2, 0.15);
+                this.sounds.hover = this.createTone(600, 'sine', 0.05, 0.1);
+                this.sounds.type = this.createTone(800, 'square', 0.1, 0.05);
+                this.sounds.error = this.createTone(200, 'sawtooth', 0.4, 0.8);
+                this.sounds.wiggle = this.createTone(500, 'sine', 0.1, 0.2);
+            }
+
+            createTone(frequency, type, volume, duration, loop = false) {
+                return () => {
+                    if (!this.audioContext || !this.isEnabled) return;
+                    const oscillator = this.audioContext.createOscillator();
+                    const gainNode = this.audioContext.createGain();
+                    oscillator.type = type;
+                    oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+                    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+                    gainNode.gain.linearRampToValueAtTime(volume, this.audioContext.currentTime + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
+                    oscillator.connect(gainNode);
+                    gainNode.connect(this.masterGain);
+                    oscillator.start();
+                    oscillator.stop(this.audioContext.currentTime + duration);
+                    if (loop) {
+                        setTimeout(() => this.sounds.ambient(), duration * 1000);
+                    }
+                };
+            }
+
+            play(soundName) {
+                if (this.sounds[soundName]) {
+                    this.sounds[soundName]();
+                }
+            }
+
+            setVolume(volume) {
+                this.volume = volume;
+                if (this.masterGain) {
+                    this.masterGain.gain.value = volume;
+                }
+            }
+
+            toggle() {
+                this.isEnabled = !this.isEnabled;
+                return this.isEnabled;
+            }
+
+            resumeContext() {
+                if (this.audioContext && this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+            }
+        }
+
+        const soundManager = new SoundManager();
+
+        const soundToggle = document.getElementById('soundToggle');
+        const volumeControl = document.getElementById('volumeControl');
+
+        soundToggle.addEventListener('click', () => {
+            const isEnabled = soundManager.toggle();
+            soundToggle.textContent = isEnabled ? '🔊' : '🔇';
+            soundToggle.classList.toggle('muted', !isEnabled);
+            if (isEnabled) {
+                soundManager.resumeContext();
+                soundManager.play('click');
+            }
+        });
+
+        volumeControl.addEventListener('input', (e) => {
+            const volume = e.target.value / 100;
+            soundManager.setVolume(volume);
+        });
+
         document.addEventListener('DOMContentLoaded', function() {
+            // Play ambient sound on page load
+            setTimeout(() => {
+                soundManager.play('ambient');
+            }, 500);
+
+            // Input focus and typing animations
             const inputs = document.querySelectorAll('input');
-            const letterTiles = document.querySelectorAll('.letter-tile, .letter-tile-active');
-            
-            // Input focus animations
             inputs.forEach(input => {
                 input.addEventListener('focus', function() {
                     this.parentElement.classList.add('animate-pulse-slow');
@@ -241,24 +381,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 input.addEventListener('blur', function() {
                     this.parentElement.classList.remove('animate-pulse-slow');
                 });
+                input.addEventListener('keydown', () => {
+                    soundManager.play('type');
+                });
             });
 
-            // Random letter tile animations
+            // Random letter tile animations with sound
+            const letterTiles = document.querySelectorAll('.letter-tile, .letter-tile-active');
             setInterval(() => {
                 const randomTile = letterTiles[Math.floor(Math.random() * letterTiles.length)];
                 randomTile.classList.add('word-scramble');
+                soundManager.play('wiggle');
                 setTimeout(() => {
                     randomTile.classList.remove('word-scramble');
                 }, 500);
             }, 3000);
 
-            // Form submission animation
+            // Form submission animation and sound
             const form = document.querySelector('form');
             form.addEventListener('submit', function() {
                 const button = this.querySelector('button[type="submit"]');
                 button.innerHTML = '<span class="animate-spin inline-block">⏳</span> กำลังเข้าสู่ระบบ...';
                 button.disabled = true;
+                soundManager.play('click');
             });
+
+            // Button and link interactions
+            const buttons = document.querySelectorAll('.touch-button');
+            buttons.forEach(button => {
+                button.addEventListener('mouseenter', () => {
+                    soundManager.play('hover');
+                });
+                button.addEventListener('click', () => {
+                    soundManager.play('click');
+                });
+                button.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    button.style.transform = 'scale(0.95)';
+                    soundManager.play('hover');
+                });
+                button.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    button.style.transform = '';
+                    soundManager.play('click');
+                    if (button.tagName === 'A') {
+                        window.location.href = button.href;
+                    } else {
+                        button.click();
+                    }
+                });
+            });
+
+            // Play error sound if login fails
+            <?php if (isset($_SESSION['play_sound']) && $_SESSION['play_sound'] === 'error'): ?>
+                soundManager.play('error');
+                <?php unset($_SESSION['play_sound']); ?>
+            <?php endif; ?>
+
+            // Prevent double-tap zoom
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', (event) => {
+                const now = new Date().getTime();
+                if (now - lastTouchEnd <= 300) {
+                    event.preventDefault();
+                }
+                lastTouchEnd = now;
+            }, false);
+
+            // Resume audio context on first interaction
+            document.addEventListener('click', () => {
+                soundManager.resumeContext();
+            }, { once: true });
         });
     </script>
 </body>
